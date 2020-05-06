@@ -1,0 +1,42 @@
+rotX=5
+arrow=nil
+
+function onLoad()
+  self.createButton({
+    position = {0,0.151,0.45},
+    scale = {8,1,8},
+    color = {1,1,1,0},
+    click_function = "tick",
+    function_owner=self,
+  })
+
+  arrow = getObjectFromGUID(self.getJoints()[1].joint_object_guid)
+  arrow.interactable=false
+  setArrow(0)
+end
+
+function onObjectDrop(player_color, dropped_object)
+  if dropped_object != self then return end
+  Wait.condition(|| setArrow(0), || self.resting)
+end
+
+function setArrow(step)
+  if arrow == nil then return end
+  local rot = self.getRotation()
+  rotX = (rotX + step)%6
+  rot.y = rot.y + rotX*60
+  arrow.setRotationSmooth(rot, false, true)
+end
+
+function tick(obj, player_color, right_click)
+  if not right_click then
+    setArrow(1)
+  end
+end
+
+function getArrow()
+  if arrow==nil then
+    arrow = getObjectFromGUID(self.getJoints()[1].joint_object_guid)
+  end
+  return arrow
+end

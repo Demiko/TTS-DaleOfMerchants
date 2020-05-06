@@ -1,0 +1,307 @@
+GUID = {
+  menu = {"91109a", "67c526"},
+  deckBag = "c2d48a",
+  market = "16af7d",
+  boards = {
+    ["Red"]   = "e25926",
+    ["Purple"]= "6aa6d7",
+    ["Blue"]  = "6c4a9a",
+    ["Green"] = "1fe138" }
+}
+
+menuButtons = {
+  { -- Menu 1
+    {name="Macaws",     x=-0.675, z=-0.895},
+    {name="Pandas",     x=-0.675, z=-0.681},
+    {name="Racoons",    x=-0.675, z=-0.465},
+    {name="Squirrels",  x=-0.675, z=-0.259},
+    {name="Ocelots",    x=-0.675, z=-0.045},
+    {name="Chameleons", x=-0.675, z= 0.168},
+
+    {name="Platypuses",   x=0.095, z=-0.895},
+    {name="Sloths",     x=0.095, z=-0.688},
+    {name="Crocodiles", x=0.095, z=-0.400},
+    {name="Foxes",      x=0.095, z=-0.198},
+    {name="Polecats",   x=0.095, z= 0.087},
+    {name="Owls",       x=0.095, z= 0.291},
+
+    {name="Beavers", x=-0.69, z=0.708},
+  },
+  {
+    {name="Monitors",       x=-0.69, z=-0.895},
+    {name="Lemurs",         x=-0.69, z=-0.6},
+    {name="Magpies",        x=-0.69, z=-0.307},
+    {name="Echidnas",       x=-0.69, z=-0.055},
+    {name="Hares",          x=-0.69, z= 0.198},
+    {name="Tree-kangaroos", x=-0.69, z= 0.545},
+
+    {name="Penguins",  x=0.07, z=-0.895},
+    {name="Tuataras",  x=0.07, z=-0.687},
+    {name="Turtles",   x=0.07, z=-0.48},
+    {name="Devils",    x=0.07, z=-0.279},
+    {name="Pangolins", x=0.07, z=-0.074},
+    {name="Gulls",     x=0.07, z= 0.35},
+    {name="Mongooses", x=0.07, z= 0.553},
+    {name="Bats",      x=0.07, z= 0.76},
+  }
+}
+
+boardPositions = {
+  {0.03968, 0.2, -0.8},
+  {0.03968, 0.2, -0.4},
+  {0.03968, 0.2, 0},
+  {0.03968, 0.2, 0.4},
+  {0.03968, 0.2, 0.8},
+  deck = {-7.90, 1.03, -0.25},
+  discard = {7.90, 1.03, -0.25},
+  junk = {
+    {-16.00, 1.03, 0.00},
+    {16.00, 1.03, 0.00}
+  },
+}
+
+deckPositions = {
+  market = {-7.90000009536743, 1.03171348571777, -0.252102822065353},
+  discard = {7.90000009536743, 1.03171348571777, -0.252102822065353},
+  personal = {1.25052857398987, 0.171713769435883, 0.471142590045929}, -- Note: local position on board
+}
+
+playerBoardPositions = {
+  deck = {1.25002348423004, 0.171713769435883, 0.473509281873703},
+  discard = {-1.25166082382202, 0.171713769435883, 0.473656237125397},
+}
+
+gameStarted = false
+
+function onLoad(saveJSON)
+  save=JSON.decode(saveJSON)
+  if save!=nil then
+    gameStarted=save.gameStarted
+  end
+
+  lockBoards()
+
+  local temp = {
+    scale = {1,1,1},
+    color = {1,1,1,0},
+    width = 75,
+    height= 50,
+  }
+  for j=1,2 do
+    local menu = getObjectFromGUID(GUID.menu[j])
+    for i,button in ipairs(menuButtons[j]) do
+      temp.position = {button.x, 0.11, button.z}
+      temp.click_function = "click"..button.name
+      temp.tooltip=button.name
+
+      Global.setVar("click"..button.name, function(obj, color, alt_click)
+        clickHandler(obj, color, alt_click, button.name)
+      end)
+
+      menu.createButton(temp)
+    end
+  end
+
+  market = getObjectFromGUID(GUID.market)
+  market.createButton({
+    position={-0.55,0,0},
+    rotation={0,90,0},
+    scale={0.6,0.6,0.6},
+    color={1,1,1,1},
+    width=600,
+    height=180,
+    label="Fill Market",
+    font_size=100,
+    click_function="fillMarket",
+  })
+  if not gameStarted then
+    market.createButton({
+      position={0,1,0},
+      rotation={0,90,0},
+      scale={0.8,0.8,0.8},
+      width=350,
+      height=180,
+      label="Start",
+      font_size=100,
+      click_function="setup",
+    })
+  end
+end
+
+function onSave()
+  return JSON.encode({gameStarted=gameStarted})
+end
+
+function fillMarket()
+  if filling then return end
+  filling = true
+  local cards = getMarketItems()
+  local count = 0
+  for i=5,1,-1 do
+    if cards[i]==nil then
+      for j=i-1,1,-1 do
+        if cards[j]!=nil then
+          count=count+1
+          cards[i]=cards[j]
+          cards[j]=nil
+          cards[i].setPositionSmooth(market.positionToWorld(boardPositions[i]),false,false)
+          break
+        end
+      end
+    end
+  end
+  local decks = getDecks()
+  local deck = decks.deck
+  local discard = decks.discard
+  local finished = false
+  if deck != nil then
+    for i=5,1,-1 do
+      if i==1 then finished=true end
+      if cards[i]==nil then
+        if deck.getQuantity()==-1 then
+          deck.flip()
+          deck.setPositionSmooth(market.positionToWorld(boardPositions[i]),false,false)
+          break
+        elseif deck.getQuantity()>0 then
+          deck.takeObject({position=market.positionToWorld(boardPositions[i]),flip=true})
+        else
+          deck.remainder.flip()
+          deck.remainder.setPositionSmooth(market.positionToWorld(boardPositions[i]),false,false)
+          break
+        end
+      end
+
+    end
+  end
+  if not finished then
+    if discard!=nil then
+      discard.flip()
+      discard.shuffle()
+      discard.setPosition(boardPositions.deck, true, false)
+      Wait.time(function() filling=false; fillMarket() end, 0.5, 0)
+    end
+  end
+  Wait.time(function() filling=false end, 1, 0)
+end
+
+function getMarketItems()
+  local cards = {}
+  for i=1,#boardPositions do
+    cards[i]=findThingAt(market.positionToWorld(boardPositions[i]))
+  end
+  return cards
+end
+
+function getJunkDecks()
+  return {
+    findThingAt(boardPositions.junk[1]),
+    findThingAt(boardPositions.junk[2])
+  }
+end
+
+function getDecks()
+  return {
+    deck=findThingAt(boardPositions.deck),
+    discard=findThingAt(boardPositions.discard),
+  }
+end
+
+function getPlayerDeck(color)
+  return findThingAt(getObjectFromGUID(GUID.boards[color]).positionToWorld(playerBoardPositions.deck))
+end
+
+function findThingAt(position)
+  local c = Physics.cast({
+    type=2,
+    origin=position,
+    size={0.11,0.11,0.11},
+    direction={0,1,0},
+    max_distance=0,
+    debug=false})
+  if #c>0 then
+    return c[1].hit_object
+  else
+    return nil
+  end
+end
+
+position = 1
+function clickHandler(obj, color, alt_click, name)
+  if alt_click then return end
+
+  local bag = getObjectFromGUID(GUID.deckBag)
+  if bag == nil then broadcastToAll("ERROR: deck bag not found.", {1,0,0}); return end
+  if market == nil then broadcastToAll("ERROR: market board not found.", {1,0,0}); return end
+
+  for i,deck in ipairs(bag.getObjects()) do
+    if deck.name == name then
+      pos = market.positionToWorld(boardPositions[position])
+      local deck = bag.takeObject({guid=deck.guid, position=pos, smooth=false})
+      position = position%5 + 1
+    end
+  end
+end
+
+function lockBoards()
+  getObjectFromGUID(GUID.market).interactable = false
+  for board in pairs(GUID.boards) do
+    getObjectFromGUID(GUID.boards[board]).interactable = false
+  end
+end
+
+function setup()
+  local deck = getDecks()
+  local junkDeck = getJunkDecks()
+  local animafolkDecks = getMarketItems()
+
+  if #animafolkDecks<3 then
+    broadcastToAll("Select at least three decks in the compendium to the right side")
+    return
+  end
+
+  for playerColor,playerBoardGUID in pairs(GUID.boards) do
+    local board = getObjectFromGUID(playerBoardGUID)
+
+    for _,d in ipairs(animafolkDecks) do
+      local c = d.takeObject({
+        position=board.positionToWorld(playerBoardPositions.deck),
+        flip=true,
+      })
+      if not Player[playerColor].seated then
+        c.destruct()
+      end
+    end
+
+    if Player[playerColor].seated then
+      local d = junkDeck[1]
+      if playerColor=="Blue" or playerColor=="Purple" then
+        d = junkDeck[2]
+      end
+
+      for i=1,10-#animafolkDecks do
+        d.takeObject({
+          position=board.positionToWorld(playerBoardPositions.deck),
+          flip=true,
+        })
+      end
+
+      function routine()
+        local deck = getPlayerDeck(playerColor)
+        deck.shuffle()
+        deck.deal(5, playerColor)
+      end
+      Wait.time(routine,1.6,0)
+    end
+  end
+
+  local d = group(animafolkDecks)[1]
+  d.setName("")
+  d.flip()
+  d.shuffle()
+  d.setPositionSmooth(boardPositions.deck, false, false)
+  Wait.condition(fillMarket, || d.resting)
+
+  market.removeButton(1)
+  gameStarted = true
+  Notes.setNotes("")
+end
