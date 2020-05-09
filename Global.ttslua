@@ -90,7 +90,7 @@ function onLoad(saveJSON)
   for j=1,2 do
     local menu = getObjectFromGUID(GUID.menu[j])
     for i,button in ipairs(menuButtons[j]) do
-      temp.position = {button.x, 0.11, button.z}
+      temp.position = {button.x, 0.1, button.z}
       temp.click_function = "click"..button.name
       temp.tooltip=button.name
 
@@ -126,6 +126,34 @@ function onLoad(saveJSON)
       click_function="setup",
     })
   end
+
+  for _,color in ipairs(Player.getAvailableColors()) do
+    local board = getObjectFromGUID(GUID.boards[color])
+    local func = "useDiscard"..color
+    Global.setVar(func, function(obj, player_color, alt_click) if not alt_click then useDiscard(obj) end end)
+    board.createButton({
+      position={-1.25,0.1,0.62},
+      scale={0.1,0.1,0.1},
+      width=1200,
+      height=700,
+      color={1,1,1,1},
+      label="Shuffle\ndiscard",
+      font_size=300,
+      click_function=func,
+    })
+  end
+end
+
+function useDiscard(board)
+  local deck = getPlayerDeck(board)
+  local discard = getPlayerDiscard(board)
+
+  if deck!=nil then return end
+  if discard==nil then return end
+
+  discard.flip()
+  discard.shuffle()
+  discard.setPositionSmooth(board.positionToWorld(playerBoardPositions.deck), false, true)
 end
 
 function onSave()
@@ -206,15 +234,19 @@ function getDecks()
   }
 end
 
-function getPlayerDeck(color)
-  return findThingAt(getObjectFromGUID(GUID.boards[color]).positionToWorld(playerBoardPositions.deck))
+function getPlayerDeck(board)
+  return findThingAt(board.positionToWorld(playerBoardPositions.deck))
+end
+
+function getPlayerDiscard(board)
+  return findThingAt(board.positionToWorld(playerBoardPositions.discard))
 end
 
 function findThingAt(position)
   local c = Physics.cast({
-    type=2,
+    type=3,
     origin=position,
-    size={0.11,0.11,0.11},
+    size={0.1,0.1,0.1},
     direction={0,1,0},
     max_distance=0,
     debug=false})
@@ -255,7 +287,7 @@ function setup()
   local animafolkDecks = getMarketItems()
 
   if #animafolkDecks<3 then
-    broadcastToAll("Select at least three decks in the compendium to the right side")
+    broadcastToAll("Select at least three decks in the compendium on the right side")
     return
   end
 
@@ -286,7 +318,7 @@ function setup()
       end
 
       function routine()
-        local deck = getPlayerDeck(playerColor)
+        local deck = getPlayerDeck(board)
         deck.shuffle()
         deck.deal(5, playerColor)
       end
