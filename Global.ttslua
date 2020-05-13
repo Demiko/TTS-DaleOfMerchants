@@ -58,20 +58,15 @@ boardPositions = {
     {-16.00, 1.03, 0.00},
     {16.00, 1.03, 0.00}
   },
-}
-
-deckPositions = {
-  market = {-7.90000009536743, 1.03171348571777, -0.252102822065353},
-  discard = {7.90000009536743, 1.03171348571777, -0.252102822065353},
-  personal = {1.25052857398987, 0.171713769435883, 0.471142590045929}, -- Note: local position on board
-}
-
-playerBoardPositions = {
-  deck = {1.25002348423004, 0.171713769435883, 0.473509281873703},
-  discard = {-1.25166082382202, 0.171713769435883, 0.473656237125397},
+  player = {
+    deck = {1.25, 0.17, 0.47},
+    discard = {-1.25, 0.17, 0.47},
+  },
 }
 
 gameStarted = false
+market = {}
+boards = {}
 
 function onLoad(saveJSON)
   save=JSON.decode(saveJSON)
@@ -79,7 +74,8 @@ function onLoad(saveJSON)
     gameStarted=save.gameStarted
   end
 
-  lockBoards()
+  market = getObjectFromGUID(GUID.market)
+  market.interactable = false
 
   local temp = {
     scale = {1,1,1},
@@ -102,46 +98,54 @@ function onLoad(saveJSON)
     end
   end
 
-  market = getObjectFromGUID(GUID.market)
-  market.createButton({
-    position={-0.55,0,0},
-    rotation={0,90,0},
-    scale={0.6,0.6,0.6},
-    color={1,1,1,1},
-    width=600,
-    height=180,
-    label="Fill Market",
-    font_size=100,
-    click_function="fillMarket",
-  })
-  if not gameStarted then
+  if gameStarted then
+    createRefillButton()
+  else
     market.createButton({
       position={0,1,0},
       rotation={0,90,0},
-      scale={0.8,0.8,0.8},
-      width=350,
-      height=180,
+      scale={0.5,0.5,0.5},
+      width=550,
+      height=300,
       label="Start",
-      font_size=100,
+      font_size=200,
       click_function="setup",
     })
   end
 
   for _,color in ipairs(Player.getAvailableColors()) do
-    local board = getObjectFromGUID(GUID.boards[color])
-    local func = "useDiscard"..color
-    Global.setVar(func, function(obj, player_color, alt_click) if not alt_click then useDiscard(obj) end end)
-    board.createButton({
-      position={-1.25,0.1,0.62},
-      scale={0.1,0.1,0.1},
-      width=1200,
-      height=700,
-      color={1,1,1,1},
-      label="Shuffle\ndiscard",
-      font_size=300,
-      click_function=func,
-    })
+    boards[color] = getObjectFromGUID(GUID.boards[color])
+    local board = boards[color]
+    if board != nil then
+      board.interactable = false
+      local func = "useDiscard"..color
+      Global.setVar(func, function(obj, player_color, alt_click) if not alt_click then useDiscard(obj) end end)
+      board.createButton({
+        position={-1.25,0.1,0.62},
+        scale={0.1,0.1,0.1},
+        width=1200,
+        height=700,
+        color={1,1,1,1},
+        label="Shuffle\ndiscard",
+        font_size=300,
+        click_function=func,
+      })
+    end
   end
+end
+
+function createRefillButton()
+  market.createButton({
+    position={-0.55,0,0},
+    rotation={0,90,0},
+    scale={0.5,0.5,0.5},
+    color={1,1,1,1},
+    width=800,
+    height=200,
+    label="Fill Market",
+    font_size=140,
+    click_function="refillMarket",
+  })
 end
 
 function useDiscard(board)
@@ -151,16 +155,16 @@ function useDiscard(board)
   if deck!=nil then return end
   if discard==nil then return end
 
-  discard.flip()
+  discard.setRotation(board.getRotation()+Vector(0,0,180))
   discard.shuffle()
-  discard.setPositionSmooth(board.positionToWorld(playerBoardPositions.deck), false, true)
+  discard.setPositionSmooth(board.positionToWorld(boardPositions.player.deck), false, true)
 end
 
 function onSave()
   return JSON.encode({gameStarted=gameStarted})
 end
 
-function fillMarket()
+function refillMarket()
   if filling then return end
   filling = true
   local cards = getMarketItems()
@@ -186,14 +190,15 @@ function fillMarket()
     for i=5,1,-1 do
       if i==1 then finished=true end
       if cards[i]==nil then
+        local rotation=market.getRotation()+vector(0,90,0)
         if deck.getQuantity()==-1 then
-          deck.flip()
+          deck.setRotationSmooth(rotation, false, false)
           deck.setPositionSmooth(market.positionToWorld(boardPositions[i]),false,false)
           break
         elseif deck.getQuantity()>0 then
-          deck.takeObject({position=market.positionToWorld(boardPositions[i]),flip=true})
+          deck.takeObject({position=market.positionToWorld(boardPositions[i]),rotation=rotation})
         else
-          deck.remainder.flip()
+          deck.remainder.setRotationSmooth(rotation, false, false)
           deck.remainder.setPositionSmooth(market.positionToWorld(boardPositions[i]),false,false)
           break
         end
@@ -203,10 +208,10 @@ function fillMarket()
   end
   if not finished then
     if discard!=nil then
-      discard.flip()
+      discard.setRotation({0,180,180})
       discard.shuffle()
-      discard.setPosition(boardPositions.deck, true, false)
-      Wait.time(function() filling=false; fillMarket() end, 0.5, 0)
+      discard.setPosition(boardPositions.deck)
+      Wait.time(function() filling=false; refillMarket() end, 0.5, 0)
     end
   end
   Wait.time(function() filling=false end, 1, 0)
@@ -235,11 +240,11 @@ function getDecks()
 end
 
 function getPlayerDeck(board)
-  return findThingAt(board.positionToWorld(playerBoardPositions.deck))
+  return findThingAt(board.positionToWorld(boardPositions.player.deck))
 end
 
 function getPlayerDiscard(board)
-  return findThingAt(board.positionToWorld(playerBoardPositions.discard))
+  return findThingAt(board.positionToWorld(boardPositions.player.discard))
 end
 
 function findThingAt(position)
@@ -274,30 +279,29 @@ function clickHandler(obj, color, alt_click, name)
   end
 end
 
-function lockBoards()
-  getObjectFromGUID(GUID.market).interactable = false
-  for board in pairs(GUID.boards) do
-    getObjectFromGUID(GUID.boards[board]).interactable = false
-  end
-end
-
 function setup()
   local deck = getDecks()
   local junkDeck = getJunkDecks()
   local animafolkDecks = getMarketItems()
+
+  local tmp={}
+  for _,d in pairs(animafolkDecks) do
+    table.insert(tmp, d)
+  end
+  animafolkDecks=tmp
 
   if #animafolkDecks<3 then
     broadcastToAll("Select at least three decks in the compendium on the right side")
     return
   end
 
-  for playerColor,playerBoardGUID in pairs(GUID.boards) do
-    local board = getObjectFromGUID(playerBoardGUID)
+  for playerColor in pairs(boards) do
+    local board = boards[playerColor]
 
     for _,d in ipairs(animafolkDecks) do
       local c = d.takeObject({
-        position=board.positionToWorld(playerBoardPositions.deck),
-        flip=true,
+        position=board.positionToWorld(boardPositions.player.deck),
+        rotation=board.getRotation()+vector(0,0,180),
       })
       if not Player[playerColor].seated then
         c.destruct()
@@ -312,28 +316,34 @@ function setup()
 
       for i=1,10-#animafolkDecks do
         d.takeObject({
-          position=board.positionToWorld(playerBoardPositions.deck),
-          flip=true,
+          position=board.positionToWorld(boardPositions.player.deck),
+          rotation=board.getRotation()+vector(0,0,180),
         })
       end
 
-      function routine()
+      function dealToPlayer()
         local deck = getPlayerDeck(board)
+        if deck==nil or deck.getQuantity()<10 then
+          Wait.condition(dealToPlayer, || getPlayerDeck(board)!=nil and getPlayerDeck(board).getQuantity()==10)
+          return
+        end
         deck.shuffle()
         deck.deal(5, playerColor)
       end
-      Wait.time(routine,1.6,0)
+      Wait.time(dealToPlayer,1.5)
+    else
+      board.destruct()
     end
   end
 
+
+  animafolkDecks[1].setRotation(market.getRotation()+vector(0,90,180))
+  animafolkDecks[1].setPosition(boardPositions.deck)
   local d = group(animafolkDecks)[1]
   d.setName("")
-  d.flip()
-  d.shuffle()
-  d.setPositionSmooth(boardPositions.deck, false, false)
-  Wait.condition(fillMarket, || d.resting)
-
-  market.removeButton(1)
-  gameStarted = true
+  Wait.time(function() d.shuffle(); refillMarket() end, 1.5)
+  market.clearButtons()
+  createRefillButton()
   Notes.setNotes("")
+  gameStarted = true
 end
