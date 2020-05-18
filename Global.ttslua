@@ -47,20 +47,20 @@ menuButtons = {
 }
 
 boardPositions = {
-  {0.03968, 0.2, -0.8},
-  {0.03968, 0.2, -0.4},
-  {0.03968, 0.2, 0},
-  {0.03968, 0.2, 0.4},
-  {0.03968, 0.2, 0.8},
-  deck = {-7.90, 1.03, -0.25},
-  discard = {7.90, 1.03, -0.25},
+  {0.03968, 0.12, -0.8},
+  {0.03968, 0.12, -0.4},
+  {0.03968, 0.12, 0},
+  {0.03968, 0.12, 0.4},
+  {0.03968, 0.12, 0.8},
+  deck = {-7.90, 0.98, -0.25},
+  discard = {7.90, 0.98, -0.25},
   junk = {
     {-16.00, 1.03, 0.00},
     {16.00, 1.03, 0.00}
   },
   player = {
-    deck = {1.25, 0.17, 0.47},
-    discard = {-1.25, 0.17, 0.47},
+    deck = {1.25, 0.12, 0.47},
+    discard = {-1.25, 0.12, 0.47},
   },
 }
 
@@ -251,7 +251,7 @@ function findThingAt(position)
   local c = Physics.cast({
     type=3,
     origin=position,
-    size={0.1,0.1,0.1},
+    size={0.01,0.01,0.01},
     direction={0,1,0},
     max_distance=0,
     debug=false})
@@ -324,7 +324,7 @@ function setup()
       function dealToPlayer()
         local deck = getPlayerDeck(board)
         if deck==nil or deck.getQuantity()<10 then
-          Wait.condition(dealToPlayer, || getPlayerDeck(board)!=nil and getPlayerDeck(board).getQuantity()==10)
+          Wait.condition(dealToPlayer, || getPlayerDeck(board)!=nil and getPlayerDeck(board).getQuantity()==10, 1, || broadcastToAll("ERROR: player deck not found. Please, report this issue.", {1,0,0}))
           return
         end
         deck.shuffle()
